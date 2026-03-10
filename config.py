@@ -1,8 +1,9 @@
 import os
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 class Config(BaseSettings):
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///dev.db")
+    DATABASE_URL: str = Field(default="sqlite:///dev.db", env="DATABASE_URL")
 
     @property
     def db_type(self):
