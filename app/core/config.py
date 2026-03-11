@@ -6,7 +6,6 @@ class Settings(BaseSettings):
     # Allow extra keys in .env without crashing
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    DB_URL: str = Field(default="sqlite+aiosqlite:///./dev.db", description="Database connection URL")
     DATABASE_URL: str = Field(default="sqlite:///dev.db")
 
     @property
