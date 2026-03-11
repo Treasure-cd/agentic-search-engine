@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: agentic-search-engine
+    env: python
+    buildCommand: "pip install -r requirements.txt && pip install sentence-transformers==2.7.0"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DATABASE_URL
+        # Replace with a real postgres database connection string
+        value: sqlite+aiosqlite:///./test.db

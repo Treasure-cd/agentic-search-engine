@@ -1,7 +1,12 @@
-fastapi
+fastapi[standard]
 uvicorn[standard]
 SQLAlchemy
 alembic
 psycopg2-binary
-sentence-transformers
 pydantic
+numpy
+pydantic-settings
+agent-skills
+aiosqlite
+httpx
+beautifulsoup4
