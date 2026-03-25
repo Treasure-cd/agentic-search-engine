@@ -15,7 +15,10 @@ Whenever request payloads, query params, or response fields change for agent-fac
 
 ## Base URL
 
-By default, the application runs locally at `http://localhost:8000`.
+**Production**: `https://api.ase.penivera.me`
+**Development**: `http://localhost:8000`
+**Local**: `http://localhost:8000`
+
 All API routes are prefixed with `/api`.
 
 ## Agent Flow
