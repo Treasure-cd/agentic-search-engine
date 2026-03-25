@@ -1,5 +1,5 @@
-from typing import Any, Optional
-from fastapi import APIRouter, BackgroundTasks
+from typing import Annotated, Any, Optional
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from sqlalchemy import select
 from app.core.deps import SessionDep
 from app.models.database import Platform, SkillEmbedding
@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/platforms", tags=["platforms"])
 
-async def background_crawl_task(platform_id: str, url: str, skills_url: Optional[str] = None):
+
+async def background_crawl_task(
+    platform_id: str, url: str, skills_url: Optional[str] = None
+):
     """
     Crawls the platform, generating a fallback description and scanning for skills.
     If a skill is found or provided directly, it automatically gets indexed.
@@ -23,9 +26,12 @@ async def background_crawl_task(platform_id: str, url: str, skills_url: Optional
         # We need a new session context for background tasks
         from app.db.session import SessionLocal
         import uuid
+
         async with SessionLocal() as session:
             platform_uuid = uuid.UUID(platform_id)
-            result = await session.execute(select(Platform).filter(Platform.id == platform_uuid))
+            result = await session.execute(
+                select(Platform).filter(Platform.id == platform_uuid)
+            )
             platform = result.scalars().first()
             if not platform:
                 return
@@ -33,33 +39,46 @@ async def background_crawl_task(platform_id: str, url: str, skills_url: Optional
             if skills_url:
                 # Fetch directly if we have a specific URL
                 import httpx
+
                 async with httpx.AsyncClient() as client:
                     resp = await client.get(skills_url, follow_redirects=True)
                     skill_content = resp.text if resp.status_code == 200 else None
                 crawl_result = {
                     "skill_content": skill_content,
-                    "description": platform.description
+                    "description": platform.description,
                 }
             else:
                 crawl_result = await crawler.crawl_platform(url)
-            
+
             # Auto-update description if not explicitly provided
             if not platform.description and crawl_result.get("description"):
                 platform.description = crawl_result["description"]
-            
+
             if crawl_result.get("skill_content"):
                 # Initialize the Vectorizer and auto-ingest the discovered skill
                 logger.info(f"Indexing skill for platform {url}")
                 vectorizer = Vectorizer()
-                embedding = vectorizer.generate_embeddings([crawl_result["skill_content"]])[0]
-                
-                db_skill = SkillEmbedding(
-                    platform_id=platform.id,
-                    dimension=embedding,
-                    capabilities=crawl_result["skill_content"]
+                embedding = vectorizer.generate_embeddings(
+                    [crawl_result["skill_content"]]
+                )[0]
+
+                existing_result = await session.execute(
+                    select(SkillEmbedding).filter(
+                        SkillEmbedding.platform_id == platform.id
+                    )
                 )
-                session.add(db_skill)
-            
+                existing_skill = existing_result.scalars().first()
+                if existing_skill:
+                    existing_skill.dimension = embedding
+                    existing_skill.capabilities = crawl_result["skill_content"]
+                else:
+                    db_skill = SkillEmbedding(
+                        platform_id=platform.id,
+                        dimension=embedding,
+                        capabilities=crawl_result["skill_content"],
+                    )
+                    session.add(db_skill)
+
             await session.commit()
     except Exception as e:
         logger.error(f"Error during background crawl of {url}: {e}")
@@ -69,19 +88,17 @@ async def background_crawl_task(platform_id: str, url: str, skills_url: Optional
 
 @router.post("/")
 async def create_platform(
-    platform_in: PlatformCreate,
-    session: SessionDep,
-    background_tasks: BackgroundTasks
+    platform_in: PlatformCreate, session: SessionDep, background_tasks: BackgroundTasks
 ) -> dict[str, Any]:
     """
-    Submit a new platform to the index. Kicks off an asynchronous background 
+    Submit a new platform to the index. Kicks off an asynchronous background
     task to generate descriptions and discover AI skills.
     """
     db_platform = Platform(
         name=platform_in.name,
         url=str(platform_in.url),
         homepage_uri=str(platform_in.homepage_uri),
-        description=platform_in.description
+        description=platform_in.description,
     )
     session.add(db_platform)
     await session.commit()
@@ -89,16 +106,16 @@ async def create_platform(
 
     # Queue the background crawl task
     background_tasks.add_task(
-        background_crawl_task, 
-        str(db_platform.id), 
-        str(db_platform.url), 
-        str(platform_in.skills_url) if platform_in.skills_url else None
+        background_crawl_task,
+        str(db_platform.id),
+        str(db_platform.url),
+        str(platform_in.skills_url) if platform_in.skills_url else None,
     )
 
     return {
         "id": str(db_platform.id),
         "name": db_platform.name,
-        "message": "Platform created successfully. Crawler dispatched to discover skills and analyze the webpage."
+        "message": "Platform created successfully. Crawler dispatched to discover skills and analyze the webpage.",
     }
 
 
@@ -106,16 +123,27 @@ async def create_platform(
 async def ingest_platform_skills(
     platform_id: str,
     session: SessionDep,
-    skills_url: Optional[str] = None,
-    background_tasks: BackgroundTasks = BackgroundTasks(),
+    background_tasks: BackgroundTasks,
+    skills_url: Annotated[
+        Optional[str], Query(description="Optional URL to fetch skill content from")
+    ] = None,
 ) -> dict[str, Any]:
     import uuid
-    platform_uuid = uuid.UUID(platform_id)
-    result = await session.execute(select(Platform).filter(Platform.id == platform_uuid))
+
+    try:
+        platform_uuid = uuid.UUID(platform_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid platform_id format")
+
+    result = await session.execute(
+        select(Platform).filter(Platform.id == platform_uuid)
+    )
     platform = result.scalars().first()
     if not platform:
-        return {"error": "Platform not found"}
+        raise HTTPException(status_code=404, detail="Platform not found")
 
-    background_tasks.add_task(background_crawl_task, str(platform.id), str(platform.url), skills_url)
-    
-    return {"message": "Ingestion task queued."}
+    background_tasks.add_task(
+        background_crawl_task, str(platform.id), str(platform.url), skills_url
+    )
+
+    return {"message": "Ingestion task queued.", "platform_id": str(platform.id)}
