@@ -107,7 +107,7 @@ async def create_platform(
         name=platform_in.name,
         url=str(platform_in.url),
         homepage_uri=str(platform_in.homepage_uri),
-        skills_url=str(platform_in.skills_url) if platform_in.skills_url else None,
+        skills_url=str(platform_in.skills_url),
         description=platform_in.description,
     )
     session.add(db_platform)
@@ -119,7 +119,7 @@ async def create_platform(
         background_crawl_task,
         str(db_platform.id),
         str(db_platform.url),
-        str(platform_in.skills_url) if platform_in.skills_url else None,
+        str(platform_in.skills_url),
     )
 
     return {
@@ -165,7 +165,9 @@ async def ingest_platform_skills(
 @router.get("")
 @router.get("/")
 async def list_platforms(session: SessionDep) -> list[dict[str, Any]]:
-    result = await session.execute(select(Platform).order_by(Platform.created_at.desc()))
+    result = await session.execute(
+        select(Platform).order_by(Platform.created_at.desc())
+    )
     platforms = result.scalars().all()
     return [
         {
@@ -190,7 +192,9 @@ async def get_platform(platform_id: str, session: SessionDep) -> dict[str, Any]:
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid platform_id format")
 
-    result = await session.execute(select(Platform).filter(Platform.id == platform_uuid))
+    result = await session.execute(
+        select(Platform).filter(Platform.id == platform_uuid)
+    )
     platform = result.scalars().first()
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found")

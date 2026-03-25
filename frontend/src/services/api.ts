@@ -21,7 +21,7 @@ export interface PlatformPayload {
   url: string;
   homepage_uri: string;
   description?: string;
-  skills_url?: string;
+  skills_url: string;
 }
 
 // Search for skills
@@ -110,7 +110,7 @@ export async function registerPlatform(platform: PlatformPayload, token?: string
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_URL}/platforms`, {
+    const response = await fetch(`${API_URL}/platforms/`, {
       method: 'POST',
       headers,
       body: JSON.stringify(platform),

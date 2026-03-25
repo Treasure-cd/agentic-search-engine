@@ -82,14 +82,18 @@ async def search_skills(
                 raw_dimension = skill.dimension
             skill_vector = np.array(raw_dimension, dtype=float)
         except Exception:
-            logger.warning("Skipping skill %s due to invalid embedding payload", skill.id)
+            logger.warning(
+                "Skipping skill %s due to invalid embedding payload", skill.id
+            )
             continue
 
         # Repair legacy/invalid vectors on-the-fly so search does not fail.
         if skill_vector.ndim != 1 or len(skill_vector) != query_dim:
             if text_for_match.strip():
                 try:
-                    repaired_vector = vectorizer.generate_embeddings([text_for_match])[0]
+                    repaired_vector = vectorizer.generate_embeddings([text_for_match])[
+                        0
+                    ]
                     skill.dimension = repaired_vector
                     skill_vector = np.array(repaired_vector, dtype=float)
                     repaired_embeddings += 1

@@ -35,7 +35,7 @@ export default function RegisterProduct() {
           url,
           homepage_uri: homepageUri,
           description: description || undefined,
-          skills_url: skillsUrl || undefined,
+          skills_url: skillsUrl,
         },
         token || undefined,
       )
@@ -101,7 +101,8 @@ export default function RegisterProduct() {
           <Input
             value={skillsUrl}
             onChange={(e) => setSkillsUrl(e.target.value)}
-            placeholder="SKILL.md URL (optional)"
+            placeholder="SKILL.md URL (https://.../SKILL.md)"
+            required
           />
 
           <div className="pt-2 border-t border-border" />
