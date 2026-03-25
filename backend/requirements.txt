@@ -9,6 +9,5 @@ pydantic-settings
 aiosqlite
 httpx
 beautifulsoup4
-sentence-transformers==2.7.0
 pytest
 pytest-asyncio
