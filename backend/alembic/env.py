@@ -5,6 +5,7 @@ from alembic import context
 import sys
 sys.path.append('.')
 from app.models.database import Base
+from app.core.config import settings
 
 config = context.config
 if config.config_file_name is not None:
@@ -13,7 +14,12 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 def run_migrations_online():
-    engine = create_engine("sqlite:///dev.db")
+    # Use DATABASE_URL from environment or default from config
+    database_url = settings.DATABASE_URL
+    engine = create_engine(
+        database_url,
+        poolclass=pool.NullPool if "sqlite" in database_url else pool.QueuePool
+    )
 
     with engine.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)

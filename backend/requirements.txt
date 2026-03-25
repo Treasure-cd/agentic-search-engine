@@ -1,10 +1,10 @@
-fastapi[standard]
-uvicorn[standard]
-SQLAlchemy
+fastapi
+uvicorn
+fastapi-cli
+SQLAlchemy[asyncio]
 alembic
 psycopg2-binary
 pydantic
-numpy
 pydantic-settings
 aiosqlite
 httpx
@@ -12,3 +12,4 @@ beautifulsoup4
 sentence-transformers==2.7.0
 pytest
 pytest-asyncio
+python-multipart
