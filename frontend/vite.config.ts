@@ -7,4 +7,25 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    // Production build optimization
+    target: 'ES2020',
+    minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
+  server: {
+    // Development server configuration
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
 })

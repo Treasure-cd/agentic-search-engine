@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Landing from "../src/pages/Landing";
 import Home from "../src/pages/Home";
+import Agent from "../src/pages/Agent";
 import SearchResults from "../src/pages/SearchResults";
 import Dashboard from "../src/pages/Dashboard";
 
@@ -7,13 +9,19 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Landing Page: The clean, minimalist entry point */}
-        <Route path="/" element={<Home />} />
+        {/* Landing Page: Dual interface - "I'm an Agent" or "I'm a Human" */}
+        <Route path="/" element={<Landing />} />
         
-        {/* Results Page: Where queries live (e.g., /search?q=query) */}
+        {/* Agent Integration: Get SKILL.md and API endpoints */}
+        <Route path="/agent" element={<Agent />} />
+        
+        {/* Human Search Interface: Search and discover skills */}
+        <Route path="/home" element={<Home />} />
+        
+        {/* Search Results: Display query results */}
         <Route path="/search" element={<SearchResults />} />
         
-        {/* Search Console: The developer dashboard */}
+        {/* Search Console: Developer dashboard */}
         <Route path="/console" element={<Dashboard />} />
       </Routes>
     </BrowserRouter>
