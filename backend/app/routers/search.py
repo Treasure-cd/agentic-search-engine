@@ -3,9 +3,11 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 import json
 import numpy as np
+import time
 
 from app.core.deps import SessionDep, VectorizerDep
-from app.models.database import SkillEmbedding
+from app.models.database import QueryLog, SkillEmbedding
+from app.services.search_cache import search_cache
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -22,6 +24,22 @@ async def search_skills(
     """
     Search for skills based on a query, using embeddings for semantic similarity.
     """
+    started_at = time.perf_counter()
+    cache_key = f"{query.strip().lower()}::{top_k}"
+    cached = search_cache.get(cache_key)
+    if cached is not None:
+        latency_ms = (time.perf_counter() - started_at) * 1000
+        session.add(
+            QueryLog(
+                query=query,
+                top_k=top_k,
+                result_count=len(cached),
+                latency_ms=latency_ms,
+            )
+        )
+        await session.commit()
+        return cached
+
     try:
         query_embedding = vectorizer.generate_embeddings([query])[0]
     except Exception as e:
@@ -43,6 +61,15 @@ async def search_skills(
 
     matches = []
     for skill, platform in results:
+        text_for_match = "\n".join(
+            x
+            for x in [
+                skill.skill_name or "",
+                " ".join(skill.tags or []),
+                skill.capabilities,
+            ]
+            if x
+        )
         # SQLite storage uses JSON, Postgres array
         if isinstance(skill.dimension, str):
             skill_vector = np.array(json.loads(skill.dimension))
@@ -63,10 +90,28 @@ async def search_skills(
                 "platform_name": platform.name,
                 "platform_description": platform.description,
                 "platform_id": str(platform.id),
+                "skill_id": str(skill.id),
+                "skill_name": skill.skill_name,
+                "tags": skill.tags or [],
                 "skill": skill.capabilities,
                 "similarity": similarity,
+                "skill_md_url": platform.skills_url,
+                "match_text_preview": text_for_match[:220],
             }
         )
 
     matches = sorted(matches, key=lambda x: x["similarity"], reverse=True)[:top_k]
+    search_cache.set(cache_key, matches)
+
+    latency_ms = (time.perf_counter() - started_at) * 1000
+    session.add(
+        QueryLog(
+            query=query,
+            top_k=top_k,
+            result_count=len(matches),
+            latency_ms=latency_ms,
+        )
+    )
+    await session.commit()
+
     return matches

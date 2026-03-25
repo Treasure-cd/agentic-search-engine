@@ -6,8 +6,10 @@ from app.models.database import Platform, SkillEmbedding
 from app.schemas.requests import PlatformCreate
 from app.services.crawler import CrawlerService
 from app.services.vectorizer import Vectorizer
+from app.ingestion.skills_parser import SkillParser
 from app.core.config import settings
 import logging
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +60,10 @@ async def background_crawl_task(
                 # Initialize the Vectorizer and auto-ingest the discovered skill
                 logger.info(f"Indexing skill for platform {url}")
                 vectorizer = Vectorizer()
-                embedding = vectorizer.generate_embeddings(
-                    [crawl_result["skill_content"]]
-                )[0]
+                parsed = SkillParser.parse_skill_content(crawl_result["skill_content"])
+                capabilities = parsed["normalized_text"]
+                skill_hash = hashlib.sha256(capabilities.encode("utf-8")).hexdigest()
+                embedding = vectorizer.generate_embeddings([capabilities])[0]
 
                 existing_result = await session.execute(
                     select(SkillEmbedding).filter(
@@ -70,12 +73,18 @@ async def background_crawl_task(
                 existing_skill = existing_result.scalars().first()
                 if existing_skill:
                     existing_skill.dimension = embedding
-                    existing_skill.capabilities = crawl_result["skill_content"]
+                    existing_skill.capabilities = capabilities
+                    existing_skill.skill_name = parsed.get("skill_name")
+                    existing_skill.tags = parsed.get("tags")
+                    existing_skill.skill_hash = skill_hash
                 else:
                     db_skill = SkillEmbedding(
                         platform_id=platform.id,
                         dimension=embedding,
-                        capabilities=crawl_result["skill_content"],
+                        capabilities=capabilities,
+                        skill_name=parsed.get("skill_name"),
+                        tags=parsed.get("tags"),
+                        skill_hash=skill_hash,
                     )
                     session.add(db_skill)
 
@@ -98,6 +107,7 @@ async def create_platform(
         name=platform_in.name,
         url=str(platform_in.url),
         homepage_uri=str(platform_in.homepage_uri),
+        skills_url=str(platform_in.skills_url) if platform_in.skills_url else None,
         description=platform_in.description,
     )
     session.add(db_platform)
@@ -115,6 +125,7 @@ async def create_platform(
     return {
         "id": str(db_platform.id),
         "name": db_platform.name,
+        "skills_url": db_platform.skills_url,
         "message": "Platform created successfully. Crawler dispatched to discover skills and analyze the webpage.",
     }
 
@@ -142,8 +153,10 @@ async def ingest_platform_skills(
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found")
 
+    effective_skills_url = skills_url or platform.skills_url
+
     background_tasks.add_task(
-        background_crawl_task, str(platform.id), str(platform.url), skills_url
+        background_crawl_task, str(platform.id), str(platform.url), effective_skills_url
     )
 
     return {"message": "Ingestion task queued.", "platform_id": str(platform.id)}

@@ -47,7 +47,7 @@ export default function Home() {
 
       <div className="relative z-10 w-full max-w-4xl text-center mb-25">
         <h1 className="text-5xl font-bold tracking-tight md:text-7xl mb-2">
-          Agentic <span className="text-primary">Search</span>
+          ASE <span className="text-primary">(Agentic Search Engine)</span>
         </h1>
         <p className="text-muted mb-10 md:text-lg">
           Find skills, tools, and agents instantly.
